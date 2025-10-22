@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	<RootNamespace>DeedStorage</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Eco\Server\Eco.Core\Eco.Core.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Eco\Server\Eco.Gameplay\Eco.Gameplay.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Eco\Server\Eco.Shared\Eco.Shared.csproj" />
+  </ItemGroup>
+</Project>
