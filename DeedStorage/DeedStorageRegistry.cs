@@ -3,9 +3,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Eco.Gameplay.Components;
-using Eco.Gameplay.Components.Storage;
 using Eco.Gameplay.Components.Auth;
+using Eco.Gameplay.Components.Storage;
 using Eco.Gameplay.Objects;
+using Eco.Gameplay.Property;
 
 namespace DeedStorage
 {
@@ -45,7 +46,11 @@ namespace DeedStorage
         {
             if (obj == null) return;
 
-            foreach (var link in obj.GetComponents<LinkComponent>())
+            var links = obj.GetComponents<LinkComponent>().ToList();
+            if (links.Count == 0)
+                links = LinkToDeed.Keys.Where(link => link?.Parent == obj).ToList();
+
+            foreach (var link in links)
             {
                 Unregister(link, detach: true);
             }
@@ -55,7 +60,7 @@ namespace DeedStorage
 
         private static void Register(LinkComponent? link)
         {
-            if (link?.Parent == null) return;
+            if (link?.Parent == null || link.Parent.IsDestroyed) return;
 
             Subscriptions.GetOrAdd(link, static key =>
             {
@@ -96,7 +101,7 @@ namespace DeedStorage
                 if (peer == link)
                     continue;
 
-                if (peer.Parent == null || !HasStorage(peer.Parent))
+                if (peer.Parent == null || peer.Parent.IsDestroyed || !HasStorage(peer.Parent))
                 {
                     bucket.TryRemove(peer, out _);
                     continue;
@@ -139,8 +144,14 @@ namespace DeedStorage
         private static bool TryResolveDeedId(LinkComponent link, out int deedId)
         {
             deedId = 0;
-            var deed = link.Parent?.GetDeed();
+            var parent = link.Parent;
+            if (parent == null || parent.IsDestroyed) return false;
+
+            Deed deed = parent.TryGetComponent<StandaloneAuthComponent>(out var standalone) ? standalone.Deed : parent.GetDeed();
+            deed ??= PropertyManager.GetDeedWorldPos(parent.Position3i.XZ);
+
             if (deed == null) return false;
+
             deedId = deed.Id;
             return deedId != 0;
         }
@@ -180,7 +191,7 @@ namespace DeedStorage
                 if (peer == link)
                     continue;
 
-                if (peer.Parent == null || !HasStorage(peer.Parent))
+                if (peer.Parent == null || peer.Parent.IsDestroyed || !HasStorage(peer.Parent))
                 {
                     bucket.TryRemove(peer, out _);
                     continue;
@@ -190,7 +201,7 @@ namespace DeedStorage
             }
         }
 
-        private static bool HasStorage(WorldObject obj) => obj.GetComponent<StorageComponent>() != null;
+        private static bool HasStorage(WorldObject obj) => obj is { IsDestroyed: false } && obj.GetComponent<StorageComponent>() != null;
 
         private sealed class Subscription
         {
