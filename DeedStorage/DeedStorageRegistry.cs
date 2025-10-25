@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Eco.Gameplay.Components;
 using Eco.Gameplay.Components.Auth;
 using Eco.Gameplay.Components.Storage;
@@ -86,6 +87,8 @@ namespace DeedStorage
 
             LinkToDeed[link] = deedId;
 
+            CleanupLinkedObjects(link);
+
             var bucket = LinksByDeed.GetOrAdd(deedId, _ => new ConcurrentDictionary<LinkComponent, byte>());
             foreach (var peer in bucket.Keys.ToArray())
             {
@@ -95,16 +98,68 @@ namespace DeedStorage
                 if (peer == link)
                     continue;
 
-                if (peer.Parent == null || peer.Parent.IsDestroyed || !HasStorage(peer.Parent))
+                if (peer.Parent == null || peer.Parent.IsDestroyed)
                 {
                     bucket.TryRemove(peer, out _);
                     continue;
                 }
 
-                DeedStorageLinker.TryLink(link, peer);
+                var linkHasStorage = HasStorage(link.Parent);
+                var peerHasStorage = HasStorage(peer.Parent);
+                var linkHasCrafting = HasCrafting(link.Parent);
+                var peerHasCrafting = HasCrafting(peer.Parent);
+
+                if ((linkHasStorage && (peerHasStorage || peerHasCrafting)) ||
+                    (peerHasStorage && (linkHasStorage || linkHasCrafting)))
+                {
+                    DeedStorageLinker.TryLink(link, peer);
+                }
             }
 
             bucket[link] = 0;
+        }
+
+        private static void CleanupLinkedObjects(LinkComponent link)
+        {
+            try
+            {
+                var linkedObjectsProp = typeof(LinkComponent).GetProperty("LinkedObjects", BindingFlags.Instance | BindingFlags.Public);
+                if (linkedObjectsProp?.GetValue(link) is not System.Collections.IEnumerable linkedObjects)
+                    return;
+
+                var snapshot = new List<LinkComponent>();
+                foreach (var item in linkedObjects)
+                {
+                    if (item is LinkComponent peer)
+                        snapshot.Add(peer);
+                }
+
+                if (snapshot.Count == 0)
+                    return;
+
+                LinkToDeed.TryGetValue(link, out var linkDeedId);
+
+                foreach (var peer in snapshot)
+                {
+                    if (peer == null)
+                        continue;
+
+                    if (peer.Parent == null || peer.Parent.IsDestroyed || !HasStorage(peer.Parent))
+                    {
+                        DeedStorageLinker.TryUnlink(link, peer);
+                        continue;
+                    }
+
+                    if (linkDeedId != 0 && LinkToDeed.TryGetValue(peer, out var peerDeedId) && peerDeedId != 0 && peerDeedId != linkDeedId)
+                    {
+                        DeedStorageLinker.TryUnlink(link, peer);
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort cleanup; ignore errors
+            }
         }
 
         private static void Unregister(LinkComponent? link, bool detach)
@@ -123,6 +178,7 @@ namespace DeedStorage
                                 continue;
 
                             DeedStorageLinker.TryUnlink(link, peer);
+                            Refresh(peer);
                         }
                     }
 
@@ -165,6 +221,7 @@ namespace DeedStorage
                         continue;
 
                     DeedStorageLinker.TryUnlink(link, peer);
+                    Refresh(peer);
                 }
             }
 
@@ -185,17 +242,27 @@ namespace DeedStorage
                 if (peer == link)
                     continue;
 
-                if (peer.Parent == null || peer.Parent.IsDestroyed || !HasStorage(peer.Parent))
+                if (peer.Parent == null || peer.Parent.IsDestroyed)
                 {
                     bucket.TryRemove(peer, out _);
                     continue;
                 }
 
-                DeedStorageLinker.TryLink(link, peer);
+                var linkHasStorage = HasStorage(link.Parent);
+                var peerHasStorage = HasStorage(peer.Parent);
+                var linkHasCrafting = HasCrafting(link.Parent);
+                var peerHasCrafting = HasCrafting(peer.Parent);
+
+                if ((linkHasStorage && (peerHasStorage || peerHasCrafting)) ||
+                    (peerHasStorage && (linkHasStorage || linkHasCrafting)))
+                {
+                    DeedStorageLinker.TryLink(link, peer);
+                }
             }
         }
 
         private static bool HasStorage(WorldObject obj) => obj is { IsDestroyed: false } && obj.GetComponent<StorageComponent>() != null;
+        private static bool HasCrafting(WorldObject obj) => obj is { IsDestroyed: false } && obj.GetComponent<CraftingComponent>() != null;
 
         private sealed class Subscription
         {

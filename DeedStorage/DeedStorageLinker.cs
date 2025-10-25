@@ -61,7 +61,45 @@ namespace DeedStorage
             }
 
             if (!success)
-                success |= RemoveFromLinkedObjects(first, second) | RemoveFromLinkedObjects(second, first);
+            {
+                try
+                {
+                    if (DelinkMethod != null)
+                    {
+                        DelinkMethod.Invoke(second, new object[] { new[] { first } });
+                        success = true;
+                    }
+                }
+                catch
+                {
+                    // ignored, will attempt final fallback below
+                }
+            }
+
+            if (!success)
+            {
+                var removed = RemoveFromLinkedObjects(first, second) | RemoveFromLinkedObjects(second, first);
+                if (removed)
+                {
+                    success = true;
+
+                    try
+                    {
+                        foreach (var comp in first.Parent?.GetComponents<Eco.Gameplay.Components.Storage.StorageComponent>() ?? Array.Empty<Eco.Gameplay.Components.Storage.StorageComponent>())
+                            second.OnDelinked.Invoke(comp);
+
+                        foreach (var comp in second.Parent?.GetComponents<Eco.Gameplay.Components.Storage.StorageComponent>() ?? Array.Empty<Eco.Gameplay.Components.Storage.StorageComponent>())
+                            first.OnDelinked.Invoke(comp);
+
+                        first.OnInventoryContentsChanged.Invoke();
+                        second.OnInventoryContentsChanged.Invoke();
+                    }
+                    catch
+                    {
+                        // best-effort
+                    }
+                }
+            }
 
             return success;
         }

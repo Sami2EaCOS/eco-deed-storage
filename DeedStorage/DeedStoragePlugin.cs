@@ -1,6 +1,7 @@
 using System;
 using Eco.Core.Plugins.Interfaces;
 using Eco.Core.Utils;
+using Eco.Core.Utils.Async;
 using Eco.Gameplay.Objects;
 using Eco.Gameplay.Players;
 using Eco.Shared.Localization;
@@ -44,6 +45,10 @@ namespace DeedStorage
         private static void OnWorldObjectAdded(WorldObject obj, User _)
         {
             DeedStorageRegistry.TryRegister(obj);
+
+            // Some components (Auth/Deed) settle shortly after placement; schedule delayed refreshes
+            DelayedActionManager.AddDelayedAction(() => DeedStorageRegistry.TryRegister(obj), 250);
+            DelayedActionManager.AddDelayedAction(() => DeedStorageRegistry.TryRegister(obj), 1000);
         }
 
         private static void OnWorldObjectRemoved(WorldObject obj)
