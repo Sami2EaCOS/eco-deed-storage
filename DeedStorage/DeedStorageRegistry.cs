@@ -69,12 +69,6 @@ namespace DeedStorage
                 return sub;
             });
 
-            if (!HasStorage(link.Parent))
-            {
-                Unregister(link, detach: true);
-                return;
-            }
-
             if (!TryResolveDeedId(link, out var deedId))
             {
                 Unregister(link, detach: false);
