@@ -63,6 +63,12 @@ namespace DeedStorage
         {
             if (link?.Parent == null || link.Parent.IsDestroyed) return;
 
+            if (IsVehicle(link.Parent) || link is MovableLinkComponent)
+            {
+                Unregister(link, detach: true);
+                return;
+            }
+
             Subscriptions.GetOrAdd(link, static key =>
             {
                 var sub = new Subscription(key);
@@ -255,10 +261,50 @@ namespace DeedStorage
             }
         }
 
-        private static bool IsLinkable(WorldObject? obj) => HasStorage(obj) || HasCrafting(obj) || HasTrading(obj);
+        private static bool IsLinkable(WorldObject? obj)
+        {
+            if (IsVehicle(obj))
+                return false;
+
+            return HasStorage(obj) || HasCrafting(obj) || HasTrading(obj);
+        }
 
         private static bool HasStorage(WorldObject? obj) => obj is { IsDestroyed: false } && obj.GetComponent<StorageComponent>() != null;
         private static bool HasCrafting(WorldObject? obj) => obj is { IsDestroyed: false } && obj.GetComponent<CraftingComponent>() != null;
+
+        private static bool IsVehicle(WorldObject? obj)
+        {
+            if (obj is not { IsDestroyed: false })
+                return false;
+
+            try
+            {
+                if (obj.TryGetComponent<MovableLinkComponent>(out _))
+                    return true;
+
+                if (obj.TryGetComponent<VehicleComponent>(out _))
+                    return true;
+
+                foreach (var component in obj.GetComponents<WorldObjectComponent>())
+                {
+                    if (component == null)
+                        continue;
+
+                    var type = component.GetType();
+                    if (type?.Name != null && type.Name.Contains("Vehicle", StringComparison.OrdinalIgnoreCase))
+                        return true;
+
+                    if (type?.FullName != null && type.FullName.Contains(".Vehicle", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+            }
+            catch
+            {
+                // best-effort
+            }
+
+            return false;
+        }
 
         private static bool HasTrading(WorldObject? obj)
         {
