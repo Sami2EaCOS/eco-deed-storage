@@ -104,13 +104,10 @@ namespace DeedStorage
                     continue;
                 }
 
-                var linkHasStorage = HasStorage(link.Parent);
-                var peerHasStorage = HasStorage(peer.Parent);
-                var linkHasCrafting = HasCrafting(link.Parent);
-                var peerHasCrafting = HasCrafting(peer.Parent);
+                var linkIsLinkable = IsLinkable(link.Parent);
+                var peerIsLinkable = IsLinkable(peer.Parent);
 
-                if ((linkHasStorage && (peerHasStorage || peerHasCrafting)) ||
-                    (peerHasStorage && (linkHasStorage || linkHasCrafting)))
+                if (linkIsLinkable && peerIsLinkable)
                 {
                     DeedStorageLinker.TryLink(link, peer);
                 }
@@ -248,21 +245,53 @@ namespace DeedStorage
                     continue;
                 }
 
-                var linkHasStorage = HasStorage(link.Parent);
-                var peerHasStorage = HasStorage(peer.Parent);
-                var linkHasCrafting = HasCrafting(link.Parent);
-                var peerHasCrafting = HasCrafting(peer.Parent);
+                var linkIsLinkable = IsLinkable(link.Parent);
+                var peerIsLinkable = IsLinkable(peer.Parent);
 
-                if ((linkHasStorage && (peerHasStorage || peerHasCrafting)) ||
-                    (peerHasStorage && (linkHasStorage || linkHasCrafting)))
+                if (linkIsLinkable && peerIsLinkable)
                 {
                     DeedStorageLinker.TryLink(link, peer);
                 }
             }
         }
 
-        private static bool HasStorage(WorldObject obj) => obj is { IsDestroyed: false } && obj.GetComponent<StorageComponent>() != null;
-        private static bool HasCrafting(WorldObject obj) => obj is { IsDestroyed: false } && obj.GetComponent<CraftingComponent>() != null;
+        private static bool IsLinkable(WorldObject? obj) => HasStorage(obj) || HasCrafting(obj) || HasTrading(obj);
+
+        private static bool HasStorage(WorldObject? obj) => obj is { IsDestroyed: false } && obj.GetComponent<StorageComponent>() != null;
+        private static bool HasCrafting(WorldObject? obj) => obj is { IsDestroyed: false } && obj.GetComponent<CraftingComponent>() != null;
+
+        private static bool HasTrading(WorldObject? obj)
+        {
+            if (obj is not { IsDestroyed: false })
+                return false;
+
+            try
+            {
+                foreach (var component in obj.GetComponents<WorldObjectComponent>())
+                {
+                    if (component == null)
+                        continue;
+
+                    var type = component.GetType();
+                    var name = type?.Name;
+                    if (name == null)
+                        continue;
+
+                    if (name is "ShopComponent" or "StoreComponent" or "StoreSellComponent" or "StoreBuyComponent")
+                        return true;
+
+                    var fullName = type?.FullName;
+                    if (fullName is not null && fullName.Contains(".ShopComponent", StringComparison.Ordinal))
+                        return true;
+                }
+            }
+            catch
+            {
+                // best-effort
+            }
+
+            return false;
+        }
 
         private sealed class Subscription
         {
