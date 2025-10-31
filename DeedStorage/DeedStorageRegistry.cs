@@ -147,7 +147,7 @@ namespace DeedStorage
                     if (peer == null)
                         continue;
 
-                    if (peer.Parent == null || peer.Parent.IsDestroyed || !HasStorage(peer.Parent))
+                    if (peer.Parent == null || peer.Parent.IsDestroyed) 
                     {
                         DeedStorageLinker.TryUnlink(link, peer);
                         continue;
@@ -266,79 +266,22 @@ namespace DeedStorage
             if (IsVehicle(obj))
                 return false;
 
-            return HasStorage(obj) || HasCrafting(obj) || HasTrading(obj);
+            return obj is { IsDestroyed: false } && obj.GetComponent<LinkComponent>() != null;
         }
-
-        private static bool HasStorage(WorldObject? obj) => obj is { IsDestroyed: false } && obj.GetComponent<StorageComponent>() != null;
-        private static bool HasCrafting(WorldObject? obj) => obj is { IsDestroyed: false } && obj.GetComponent<CraftingComponent>() != null;
 
         private static bool IsVehicle(WorldObject? obj)
         {
             if (obj is not { IsDestroyed: false })
                 return false;
 
-            try
-            {
-                if (obj.TryGetComponent<MovableLinkComponent>(out _))
+            if (obj.TryGetComponent<MovableLinkComponent>(out _))
                     return true;
 
-                if (obj.TryGetComponent<VehicleComponent>(out _))
-                    return true;
-
-                foreach (var component in obj.GetComponents<WorldObjectComponent>())
-                {
-                    if (component == null)
-                        continue;
-
-                    var type = component.GetType();
-                    if (type?.Name != null && type.Name.Contains("Vehicle", StringComparison.OrdinalIgnoreCase))
-                        return true;
-
-                    if (type?.FullName != null && type.FullName.Contains(".Vehicle", StringComparison.OrdinalIgnoreCase))
-                        return true;
-                }
-            }
-            catch
-            {
-                // best-effort
-            }
+            if (obj.TryGetComponent<VehicleComponent>(out _))
+                return true;
 
             return false;
         }
-
-        private static bool HasTrading(WorldObject? obj)
-        {
-            if (obj is not { IsDestroyed: false })
-                return false;
-
-            try
-            {
-                foreach (var component in obj.GetComponents<WorldObjectComponent>())
-                {
-                    if (component == null)
-                        continue;
-
-                    var type = component.GetType();
-                    var name = type?.Name;
-                    if (name == null)
-                        continue;
-
-                    if (name is "ShopComponent" or "StoreComponent" or "StoreSellComponent" or "StoreBuyComponent")
-                        return true;
-
-                    var fullName = type?.FullName;
-                    if (fullName is not null && fullName.Contains(".ShopComponent", StringComparison.Ordinal))
-                        return true;
-                }
-            }
-            catch
-            {
-                // best-effort
-            }
-
-            return false;
-        }
-
         private sealed class Subscription
         {
             private readonly LinkComponent link;
